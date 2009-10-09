@@ -1,0 +1,8 @@
+# AUTOBUILD_START
+# DO NOT EDIT (digest: 8efe203738a130abae45c3916cf1c341)
+version = "0.0.1"
+requires = "bigarray"
+description = "Fast random number generator"
+archive(byte) = "fastrandom.cma"
+archive(native) = "fastrandom.cmxa"
+# AUTOBUILD_STOP

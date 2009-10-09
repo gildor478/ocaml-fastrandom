@@ -1,0 +1,29 @@
+Name:         ocaml-fastrandom
+Version:      0.0.1
+Synopsis:     Fast random number generator
+Authors:      Sylvain Le Gall
+Copyrights:   (C) 2009 Sylvain Le Gall
+LicenseFile:  COPYING.txt
+License:      LGPL-link-exn
+Homepage:     http://ocaml-fastrandom.forge.ocamlcore.org
+BuildDepends: bigarray, oUnit, benchmark
+Plugins:      META, DevFiles, StdFiles
+Description:
+  A random number generator compatible with standard library Random 
+  module. 
+  .
+  It contains C code to speed up generation and a function to skip a lot of
+  numbers at once.
+
+Library fastrandom
+ Path: src
+ Modules: FastRandom
+ 
+Executable Test
+ MainIs: tests/Test.ml
+ Install: false
+
+Executable Bench
+ MainIs: tests/Bench.ml
+ CompiledObject: best
+ Install: false

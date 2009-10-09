@@ -1,0 +1,6 @@
+"src": include
+<src/fastrandom.{cma,cmxa}>: use_libfastrandom
+<tests/Test.ml>: pkg_oUnit, use_fastrandom
+<tests/Bench.ml>: pkg_benchmark, use_fastrandom
+<tests/Test.{native,byte}>: pkg_oUnit, pkg_bigarray, use_fastrandom
+<tests/Bench.{native,byte}>: pkg_benchmark, pkg_bigarray, use_fastrandom

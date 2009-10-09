@@ -1,0 +1,6 @@
+(* AUTOBUILD_START *)
+(* DO NOT EDIT (digest: 74b4426c754bafcbf2d484c965bce3ec) *)
+Authors of ocaml-fastrandom
+Sylvain Le Gall
+
+(* AUTOBUILD_STOP *)
