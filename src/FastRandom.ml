@@ -10,6 +10,8 @@
 
 type buffer_t = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
 
+external random_seed: unit -> int = "caml_sys_random_seed";;
+
 module Low =
 struct 
   type t 
@@ -35,14 +37,25 @@ struct
 
   type t = 
       { 
-        low:  Low.t;
         bits: buffer_t; 
         len:  int;
 
+        mutable low: Low.t;
         mutable idx: int;
       }
 
-  let full_init seed =
+  let new_state ?(buffer=1024) () = 
+    let buffer = 
+      max 1 buffer
+    in
+      {
+        low  = Low.create (Array.make 55 0);
+        bits = Array1.create int c_layout buffer;
+        idx  = buffer; (* Invalid so initialized at first call *)
+        len  = buffer;
+      }
+
+  let full_init s seed =
     let st = 
       Array.make 55 0
     in
@@ -70,20 +83,18 @@ struct
         accu := combine !accu seed.(k);
         st.(j) <- st.(j) lxor extract !accu;
       done;
-      st
+      s.low <- Low.create st;
+      s.idx <- s.len
 
-  let make ?(buffer=1024) seed =
-    let buffer = 
-      max 1 buffer
+  let make ?buffer seed =
+    let res =
+      new_state ?buffer ()
     in
-      {
-        low  = Low.create (full_init seed);
-        bits = Array1.create int c_layout buffer;
-        idx  = buffer; (* Invalid at the beginning, so 
-                          initialized at first call
-                        *)
-        len  = buffer;
-      }
+      full_init res seed;
+      res
+
+  let make_self_init ?buffer () = 
+    make ?buffer [|random_seed ()|]
 
   (* Returns 30 random bits as an integer 0 <= x < 1073741824 *)
   let rec bits s =
@@ -131,3 +142,5 @@ let default =
 
 let bits () = State.bits default;;
 let int bound = State.int default bound;;
+let init seed = State.full_init default [|seed|];;
+let self_init () = init (random_seed ());;
