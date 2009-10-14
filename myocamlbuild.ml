@@ -1,21 +1,13 @@
 
 (* AUTOBUILD_START *)
-(* DO NOT EDIT (digest: 44c77cfc56edcd0d9613e60a4a89d694) *)
-
-(*
-(* Win32/Unix env *)
-let () = 
-  match Sys.os_type with 
-    | "Win32" ->
-        Options.ext_obj := "obj"
-    | _ ->
-        ()
- *)
+(* DO NOT EDIT (digest: 4028c675a576e9cfe433fe96a2eb9e42) *)
 module OCamlfind =
 struct
   (** OCamlbuild extension, copied from 
     * http://brion.inria.fr/gallium/index.php/Using_ocamlfind_with_ocamlbuild
     * by N. Pouillard and others
+    *
+    * Updated on 2009/02/28
     *
     * Modified by Sylvain Le Gall 
     *)
@@ -114,39 +106,91 @@ struct
       | _ -> 
           ()
 end;;
+
+module OCamlAutobuild =
+struct
+  open Ocamlbuild_plugin
+
+  type dir = string
+  type name = string
+
+  type t =
+      {
+        lib_ocaml: (name * dir list) list;
+      }
+
+  let dispatch_combine lst =
+    fun e ->
+      List.iter 
+        (fun dispatch -> dispatch e)
+        lst 
+
+  let dispatch t = 
+    function
+      | After_rules -> 
+          (* Declare OCaml libraries *)
+          List.iter 
+            (function
+               | lib, [] ->
+                   ocaml_lib lib;
+               | lib, dir :: tl ->
+                   ocaml_lib ~dir:dir lib;
+                   List.iter 
+                     (fun dir -> 
+                        flag 
+                          ["ocaml"; "use_"^lib; "compile"] 
+                          (S[A"-I"; P dir]))
+                     tl)
+            t.lib_ocaml
+
+      | _ -> 
+          ()
+
+  let dispatch_default t =
+    dispatch_combine 
+      [
+        dispatch t;
+        OCamlfind.dispatch;
+      ]
+
+end
+
+let package_default =
+  {OCamlAutobuild.lib_ocaml = ([("src/fastrandom", ["src"])]); }
+  ;;
+
+let dispatch_default = OCamlAutobuild.dispatch_default package_default;;
+
 (* AUTOBUILD_STOP *)
 
 open Ocamlbuild_plugin;;
 
-dispatch 
-  begin
-    function
-      | After_rules ->
-          flag ["compile"; "c"]
-            (S[A"-ccopt"; A"-O2"]);
+dispatch
+  (OCamlAutobuild.dispatch_combine
+     [
+       dispatch_default;
+       (
+         function
+           | After_rules ->
+               flag ["compile"; "c"]
+                 (S[A"-ccopt"; A"-O2"]);
 
-          (* fastrandom is an ocaml library. This will declare use_fastrandom and
-            include_fastrandom *)
-          ocaml_lib "src/fastrandom";
+               (* Handle C part of fastrandom (libfastrandom) *)
+               flag ["link"; "library"; "ocaml"; "byte"; "use_libfastrandom"]
+                 (S[A"-dllib"; A"-lfastrandom"; A"-cclib"; A"-lfastrandom"]);
 
-          (* Handle C part of fastrandom (libfastrandom) *)
-          flag ["link"; "library"; "ocaml"; "byte"; "use_libfastrandom"]
-            (S[A"-dllib"; A"-lfastrandom"; A"-cclib"; A"-lfastrandom"]);
+               flag ["link"; "library"; "ocaml"; "native"; "use_libfastrandom"]
+                 (S[A"-cclib"; A"-lfastrandom"]);
+                    
+               (* When ocaml link something that use the libcryptokit, then one need that file to be up to date. *)
+               dep  ["link"; "ocaml"; "use_libfastrandom"] ["src/libfastrandom.a"];
 
-          flag ["link"; "library"; "ocaml"; "native"; "use_libfastrandom"]
-            (S[A"-cclib"; A"-lfastrandom"]);
-               
-          (* When ocaml link something that use the libcryptokit, then one need that file to be up to date. *)
-          dep  ["link"; "ocaml"; "use_libfastrandom"] ["src/libfastrandom.a"];
+               (* Setup search path for lib *)
+               flag ["link"; "ocaml"; "use_libfastrandom"] 
+                 (S[A"-ccopt"; A"-Lsrc"]);
 
-          (* For internal bytecode binary, we need to use custom flags *)
-          flag ["link"; "ocaml"; "byte"] (A"-custom");
-
-          (* Setup search path for lib *)
-          flag ["link"; "ocaml"] (S[A"-ccopt"; A"-Lsrc"]);
-
-          OCamlfind.dispatch After_rules
-
-      | e -> 
-          OCamlfind.dispatch e
-  end
+           | _ -> 
+               ()
+       );
+     ])
+;;

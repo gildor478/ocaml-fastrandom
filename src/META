@@ -1,5 +1,5 @@
 # AUTOBUILD_START
-# DO NOT EDIT (digest: 8efe203738a130abae45c3916cf1c341)
+# DO NOT EDIT (digest: 1d57c6ac3103b42cb4496ac6d105afca)
 version = "0.0.1"
 requires = "bigarray"
 description = "Fast random number generator"

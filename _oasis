@@ -1,3 +1,4 @@
+OASISFormat:  1.0
 Name:         ocaml-fastrandom
 Version:      0.0.1
 Synopsis:     Fast random number generator
@@ -6,7 +7,7 @@ Copyrights:   (C) 2009 Sylvain Le Gall
 LicenseFile:  COPYING.txt
 License:      LGPL-link-exn
 Homepage:     http://ocaml-fastrandom.forge.ocamlcore.org
-BuildDepends: bigarray, oUnit, benchmark
+BuildDepends: bigarray
 Plugins:      META, DevFiles, StdFiles
 Description:
   A random number generator compatible with standard library Random 
@@ -22,6 +23,7 @@ Library fastrandom
 Executable Test
  MainIs: tests/Test.ml
  Install: false
+ BuildDepends: oUnit, fastrandom
 
 Executable Bench
  MainIs: tests/Bench.ml

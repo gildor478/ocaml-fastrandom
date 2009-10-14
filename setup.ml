@@ -1,8 +1,21 @@
 (* AUTOBUILD_START *)
-(* DO NOT EDIT (digest: bd925a58bdc3797b9213f357f0c0338b) *)
+(* DO NOT EDIT (digest: 38fd266051d48cb45f6ede09ae6f0cee) *)
 module BaseUtils =
 struct
 # 1 "src/base/BaseUtils.ml"
+  
+  
+  (** Set for String 
+    *)
+  module SetString = Set.Make(String)
+  
+  (** Build a set out of list 
+    *)
+  let set_string_of_list =
+    List.fold_left
+      (fun st e -> SetString.add e st)
+      SetString.empty
+  
   
   (** Remove trailing whitespace *)
   let strip_whitespace str =
@@ -418,7 +431,7 @@ struct
         let new_def = 
           {
              value = 
-               (if origin >= def.origin then 
+               (if origin > def.origin then 
                   Lazy.force dflt 
                 else 
                   def.value);
@@ -441,20 +454,40 @@ struct
           (* Build one definition using either value from 
            * env or default definition
            *)
+          let raised_exn = 
+            ref None
+          in
           let lzy, origin =
             (* Use env or default value, depending what is available 
                and their priority
              *)
-            List.find
-              (fun (lzy, _) -> 
-                 try 
-                   ignore (Lazy.force lzy); 
-                   true 
-                 with _ -> 
-                   false)
-              (List.sort
-                 (fun (_, org1) (_, org2) -> compare org1 org2)
-                 [lazy (Sys.getenv name), OGetEnv; dflt, origin])
+            try 
+              List.find
+                (fun (lzy, _) -> 
+                   try 
+                     ignore (Lazy.force lzy); 
+                     true 
+                   with 
+                     | Not_found -> 
+                         false
+                     | e ->
+                         (* Remember unusual exception *)
+                         raised_exn := Some e;
+                         false)
+                (List.sort
+                   (fun (_, org1) (_, org2) -> compare org1 org2)
+                   [lazy (Sys.getenv name), OGetEnv; dflt, origin])
+            with Not_found ->
+              (
+                match !raised_exn with 
+                  | Some e ->
+                      raise e
+                  | None ->
+                      failwith 
+                        (Printf.sprintf 
+                           "No default value for variable %s"
+                           name)
+              )
           in
             env.last_order <- env.last_order + 1;
             Hashtbl.add
@@ -485,7 +518,7 @@ struct
         buff
         (fun var -> 
            try 
-             var_get var env
+             var_get ~handle_not_found:false var env
            with Not_found ->
              failwith 
                (Printf.sprintf 
@@ -499,9 +532,16 @@ struct
   
   (** Get variable 
     *)
-  and var_get name env =
+  and var_get ?(handle_not_found=true) name env =
     let vl = 
-      (Hashtbl.find env.vars name).value
+      try 
+        (Hashtbl.find env.vars name).value
+      with Not_found when handle_not_found ->
+        failwith 
+          (Printf.sprintf 
+             "No variable %s defined (available: %s)"
+             name
+             (String.concat ", " (var_all env)))
     in
       var_expand env vl
   ;;
@@ -509,8 +549,8 @@ struct
   (** Add a variable to environment and return its value. [hide] allow to store
       a variable that will be hidden to user (not printed).
     *)
-  let var_define ?hide ?dump ?short_desc ?cli ?group name dflt env =
-    var_set ?hide ?dump ?short_desc ?cli ?group ODefault name dflt env;
+  let var_define ?hide ?dump ?short_desc ?cli ?arg_help ?group name dflt env =
+    var_set ?hide ?dump ?short_desc ?cli ?arg_help ?group ODefault name dflt env;
     var_get name env 
   ;;
   
@@ -549,7 +589,9 @@ struct
       open_out_bin filename
     in
       Hashtbl.iter
-        (fun nm def -> Printf.fprintf chn "%s=%S\n" nm def.value)
+        (fun nm def -> 
+           if def.dump then
+             Printf.fprintf chn "%s=%S\n" nm def.value)
         env.vars;
       close_out chn
   ;;
@@ -821,6 +863,10 @@ struct
             failwith "No result for a choice list"
   ;;
   
+  let singleton e = 
+    [Bool true, e]
+  ;;
+  
 end;;
 
 module BaseArgExt =
@@ -833,63 +879,12 @@ struct
   
   open BaseEnvironment;;
   
-  let tr_arg str =
-    let buff =
-      Buffer.create (String.length str)
-    in
-      String.iter 
-        (function 
-           | '_' | ' ' | '\n' | '\r' | '\t' -> Buffer.add_char buff '-'
-           | c -> Buffer.add_char buff c
-        )
-        str;
-      Buffer.contents buff
-  ;;
-  
-  let enable name hlp default_choices env =
-    let arg_name =
-      tr_arg name
-    in
-    let default = 
-      BaseExpr.choose default_choices env
-    in
-      var_set 
-        ODefault
-        name 
-        (lazy (if default then "true" else "false"))
-        env;
-      [
-        "--enable-"^arg_name,
-        Arg.Unit (fun () -> var_set OCommandLine name (lazy "true") env),
-        " Enable "^hlp^(if default then " [default]" else "");
-  
-        "--disable-"^arg_name,
-        Arg.Unit (fun () -> var_set OCommandLine name (lazy "false") env),
-        " Disable "^hlp^(if not default then " [default]" else "");
-      ]
-  ;;
-   
-  let wth name hlp default env =
-      var_set ODefault name (lazy default) env; 
-      [
-        "--with-"^(tr_arg name),
-        Arg.String (fun str -> var_set OCommandLine name (lazy str) env),
-        hlp^" ["^default^"]"
-      ]
-  ;;
-  
   let parse argv args env =
       (* Simulate command line for Arg *)
       let current =
         ref 0
       in
   
-      let args =
-        List.flatten
-          (List.map 
-             (fun fargs -> fargs env)
-             args)
-      in
         try
           Arg.parse_argv
             ~current:current
@@ -903,130 +898,6 @@ struct
           BaseMessage.error txt
   ;;
   
-  let default =
-    (* Standard paths *)
-    let lst =
-      [
-        "prefix",
-        "install architecture-independent files dir",
-        (match Sys.os_type with
-           | "Win32" ->
-               "%PROGRAMFILES%\\$pkg_name"
-           | _ ->
-               "/usr/local"
-        );
-        
-        "eprefix",
-        "Install architecture-dependent files in dir",
-        "$prefix";
-  
-        "bindir",
-        "User executables",
-        Filename.concat "$eprefix" "bin";
-  
-        "sbindir",
-        "System admin executables",
-        Filename.concat "$eprefix" "sbin";
-  
-        "libexecdir",
-        "Program executables",
-        Filename.concat "$eprefix" "libexec";
-  
-        "sysconfdir",
-        "Read-only single-machine data",
-        Filename.concat "$prefix" "etc";
-  
-        "sharedstatedir",
-        "Modifiable architecture-independent data",
-        Filename.concat "$prefix" "com";
-  
-        "localstatedir",
-        "Modifiable single-machine data",
-        Filename.concat "$prefix" "var";
-  
-        "libdir",
-        "Object code libraries",
-        Filename.concat "$eprefix" "lib";
-  
-        "datarootdir",
-        "Read-only arch.-independent data root",
-        Filename.concat "$prefix" "share";
-  
-        "datadir",
-        "Read-only architecture-independent data",
-        "$datarootdir";
-  
-        "infodir",
-        "Info documentation",
-        Filename.concat "$datarootdir" "info";
-  
-        "localedir",
-        "Locale-dependent data",
-        Filename.concat "$datarootdir" "locale";
-  
-        "mandir",
-        "Man documentation",
-        Filename.concat "$datarootdir" "man";
-  
-        "docdir",
-        "Documentation root",
-        Filename.concat (Filename.concat "$datarootdir" "doc") "$pkg_name";
-  
-        "htmldir",
-        "HTML documentation",
-        "$docdir";
-  
-        "dvidir",
-        "DVI documentation",
-        "$docdir";
-  
-        "pdfdir",
-        "PDF documentation",
-        "$docdir";
-  
-        "psdir",
-        "PS documentation",
-        "$docdir";
-      ]
-    in
-      fun env ->
-        List.iter 
-          (fun (name, hlp, dflt) ->
-             var_set ~short_desc:hlp ~cli:CLIAuto ~arg_help:"dir" ODefault name (lazy dflt) env)
-          lst;
-        BaseEnvironment.args env
-  (*
-        List.fold_left
-          (fun acc (name, hlp, dflt) ->
-             var_set ~short_desc:hlp ~cli:CLIAuto ODefault name (lazy dflt) env;
-             (
-               "--"^name,
-               Arg.String (fun str -> var_set OCommandLine name (lazy str) env),
-               "dir "^hlp^" ["^dflt^"]"
-             ) :: acc
-          )
-          lst*)
-  ;;
-  
-  let prefix         = var_get "prefix"
-  let eprefix        = var_get "eprefix"
-  let bindir         = var_get "bindir"
-  let sbindir        = var_get "sbindir"
-  let libexecdir     = var_get "libexecdir"
-  let sysconfdir     = var_get "sysconfdir"
-  let sharedstatedir = var_get "sharedstatedir"
-  let localstatedir  = var_get "localstatedir"
-  let libdir         = var_get "libdir"
-  let datarootdir    = var_get "datarootdir"
-  let datadir        = var_get "datadir"
-  let infodir        = var_get "infodir"
-  let localedir      = var_get "localedir"
-  let mandir         = var_get "mandir"
-  let docdir         = var_get "docdir"
-  let htmldir        = var_get "htmldir"
-  let dvidir         = var_get "dvidir"
-  let pdfdir         = var_get "pdfdir"
-  let psdir          = var_get "psdir"
 end;;
 
 module BaseVersion =
@@ -1196,35 +1067,36 @@ struct
   (** Check version, following Sys.ocaml_version convention
     *)
   let version 
-        feature 
         var_prefix 
         (str_cmp, cmp, var_cmp) 
-        fversion = 
+        fversion 
+        env = 
     (* Really compare version provided *)
     let var = 
       var_prefix^"_version_"^var_cmp
     in
-      var_set 
+      var_define 
         ~hide:true 
-        ODefault
         var
-        (lazy (* TODO: re-enable
-            let () = 
-              Msg.checking (feature^" version "^str_cmp);
-            in
-             *)
+        (lazy
            (let version =
-              match fversion () with 
+              match fversion env with 
                 | "[Distributed with OCaml]" ->
-                    (* TODO: this is not sure ! *)
-                    Sys.ocaml_version
+                    (var_get "ocaml_version" env)
                 | res ->
                     res
             in
+              prerr_endline version;
               if Ver.comparator_apply version cmp then
                 version
               else
-                raise Not_found))
+                failwith 
+                  (Printf.sprintf
+                     "Cannot satisfy version constraint on %s: %s (version: %s)"
+                     var_prefix
+                     str_cmp
+                     version)))
+        env
   ;;
   
   (** Check for findlib package
@@ -1250,14 +1122,6 @@ struct
         (ocamlfind env)
         ["query"; "-format"; "%v"; pkg]
     in
-      (* TODO re-enable
-        let default_msg =
-          "findlib package "^pkg
-        in
-        let () = 
-          Msg.checking default_msg
-        in
-       *)
     let vl =
       var_define
         ("pkg_"^pkg)
@@ -1267,12 +1131,12 @@ struct
       (
         match version_comparator with 
           | Some ver_cmp ->
-              version 
-                (*default_msg *) ""
-                ("pkg_"^pkg)
-                ver_cmp
-                (fun () -> findlib_version pkg)
-                env
+              var_ignore
+                (version 
+                   ("pkg_"^pkg)
+                   ver_cmp
+                   (fun _ -> findlib_version pkg)
+                   env)
           | None -> 
               ()
       );
@@ -1349,6 +1213,7 @@ struct
       var_define
         "ocamlc_config_map"
         ~hide:true
+        ~dump:false
         (lazy
            (var_protect
               (Marshal.to_string
@@ -1405,82 +1270,165 @@ struct
   open BaseCheck;;
   open BaseEnvironment;;
   
-  let ocamlfind  = BaseCheck.ocamlfind;;
-  let ocamlc     = BaseOCamlcConfig.ocamlc;;
-  let ocamlopt   = prog_opt "ocamlopt";;
-  let ocamlbuild = prog "ocamlbuild";;
+  (** {2 Paths} *)
   
-  let (ocaml_version,
-       standard_library_default,
-       standard_library,
-       standard_runtime,
-       ccomp_type,
-       bytecomp_c_compiler,
-       bytecomp_c_linker,
-       bytecomp_c_libraries,
-       native_c_compiler,
-       native_c_linker,
-       native_c_libraries,
-       native_partial_linker,
-       ranlib,
-       cc_profile,
-       architecture,
-       model,
-       system,
-       ext_obj,
-       ext_asm,
-       ext_lib,
-       ext_dll,
-       os_type,
-       default_executable_name,
-       systhread_supported) =
-    let c = 
-      BaseOCamlcConfig.var_cache 
-    in
-      c "version",
-      c "standard_library_default",
-      c "standard_library",
-      c "standard_runtime",
-      c "ccomp_type",
-      c "bytecomp_c_compiler",
-      c "bytecomp_c_linker",
-      c "bytecomp_c_libraries",
-      c "native_c_compiler",
-      c "native_c_linker",
-      c "native_c_libraries",
-      c "native_partial_linker",
-      c "ranlib",
-      c "cc_profile",
-      c "architecture",
-      c "model",
-      c "system",
-      c "ext_obj",
-      c "ext_asm",
-      c "ext_lib",
-      c "ext_dll",
-      c "os_type",
-      c "default_executable_name",
-      c "systhread_supported"
-  ;;
+  (**/**)
+  let p name hlp dflt = 
+    var_define
+      ~short_desc:hlp 
+      ~cli:CLIAuto 
+      ~arg_help:"dir" 
+      name 
+      (lazy dflt) 
+  
+  let (/) = Filename.concat
+  
+  (**/**)
+  
+  let prefix = 
+    p "prefix"
+      "install architecture-independent files dir"
+      (match Sys.os_type with
+         | "Win32" ->
+             "%PROGRAMFILES%\\$pkg_name"
+         | _ ->
+             "/usr/local")
+        
+  let exec_prefix = 
+    p "exec_prefix"
+      "Install architecture-dependent files in dir"
+      "$prefix"
+  
+  let bindir =
+    p "bindir"
+      "User executables"
+      ("$exec_prefix"/"bin")
+  
+  let sbindir =
+    p "sbindir"
+      "System admin executables"
+      ("$exec_prefix"/"sbin")
+  
+  let libexecdir =
+    p "libexecdir"
+      "Program executables"
+      ("$exec_prefix"/"libexec")
+  
+  let sysconfdir =
+    p "sysconfdir"
+      "Read-only single-machine data"
+      ("$prefix"/"etc")
+  
+  let sharedstatedir =
+    p "sharedstatedir"
+      "Modifiable architecture-independent data"
+      ("$prefix"/"com")
+  
+  let localstatedir =
+    p "localstatedir"
+      "Modifiable single-machine data"
+      ("$prefix"/"var")
+  
+  let libdir =
+    p "libdir"
+      "Object code libraries"
+      ("$exec_prefix"/"lib")
+  
+  let datarootdir =
+    p "datarootdir"
+      "Read-only arch.-independent data root"
+      ("$prefix"/"share")
+  
+  let datadir =
+    p "datadir"
+      "Read-only architecture-independent data"
+      "$datarootdir"
+  
+  let infodir =
+    p "infodir"
+      "Info documentation"
+      ("$datarootdir"/"info")
+  
+  let localedir =
+    p "localedir"
+      "Locale-dependent data"
+      ("$datarootdir"/"locale")
+  
+  let mandir =
+    p "mandir"
+      "Man documentation"
+      ("$datarootdir"/"man")
+  
+  let docdir =
+    p "docdir"
+      "Documentation root"
+      ("$datarootdir"/"doc"/"$pkg_name")
+  
+  let htmldir =
+    p "htmldir"
+      "HTML documentation"
+      "$docdir"
+  
+  let dvidir =
+    p "dvidir"
+      "DVI documentation"
+      "$docdir"
+  
+  let pdfdir =
+    p "pdfdir"
+      "PDF documentation"
+      "$docdir"
+  
+  let psdir =
+    p "psdir"
+      "PS documentation"
+      "$docdir"
+  
+  (** {2 Programs} *)
+  
+  let ocamlfind  = BaseCheck.ocamlfind
+  let ocamlc     = BaseOCamlcConfig.ocamlc
+  let ocamlopt   = prog_opt "ocamlopt"
+  let ocamlbuild = prog "ocamlbuild"
+  
+  
+  (** {2 OCaml config variable} *) 
+  
+  let c = BaseOCamlcConfig.var_cache 
+  
+  let ocaml_version            = c "version"
+  let standard_library_default = c "standard_library_default"
+  let standard_library         = c "standard_library"
+  let standard_runtime         = c "standard_runtime"
+  let ccomp_type               = c "ccomp_type"
+  let bytecomp_c_compiler      = c "bytecomp_c_compiler"
+  let native_c_compiler        = c "native_c_compiler"
+  let architecture             = c "architecture"
+  let model                    = c "model"
+  let system                   = c "system"
+  let ext_obj                  = c "ext_obj"
+  let ext_asm                  = c "ext_asm"
+  let ext_lib                  = c "ext_lib"
+  let ext_dll                  = c "ext_dll"
+  let os_type                  = c "os_type"
+  let default_executable_name  = c "default_executable_name"
+  let systhread_supported      = c "systhread_supported"
+  
+  (** {2 ...} *)
   
   (** Check what is the best target for platform (opt/byte)
     *)
   let ocamlbest env =
-    let ignore_string: string -> unit =
-      ignore
-    in
-      var_define
-        "ocamlbest"
-        (lazy 
-           (try
-              ignore_string (ocamlopt env);
-              "native"
-            with Not_found ->
-              (
-                ignore_string (ocamlc env);
-                "byte")))
-        env
-  ;;
+    var_define
+      "ocamlbest"
+      (lazy 
+         (try
+            var_ignore (ocamlopt env);
+            "native"
+          with Not_found ->
+            (var_ignore (ocamlc env);
+             "byte")))
+      env
   
   (** Compute the default suffix for program (target OS dependent)
     *)
@@ -1493,18 +1441,54 @@ struct
             | _ -> ""
          ))
       env
-  ;;
   
-  (** Check against a minimal version.
+  (** All variables 
     *)
-  let ocaml_version_constraint version_cmp env = 
-    version 
-      "ocaml version constraint" 
-      "ocaml" 
-      version_cmp 
-      (fun () -> ocaml_version env)
-      env
-  ;;
+  let all = 
+    [
+      prefix;
+      exec_prefix;
+      bindir;
+      sbindir;
+      libexecdir;
+      sysconfdir;
+      sharedstatedir;
+      localstatedir;
+      libdir;
+      datarootdir;
+      datadir;
+      infodir;
+      localedir;
+      mandir;
+      docdir;
+      htmldir;
+      dvidir;
+      pdfdir;
+      psdir;
+      ocamlfind;
+      ocamlc;
+      ocamlopt;
+      ocamlbuild;
+      ocamlbest;
+      ocaml_version;
+      standard_library_default;
+      standard_library;
+      standard_runtime;
+      ccomp_type;
+      bytecomp_c_compiler;
+      native_c_compiler;
+      architecture;
+      model;
+      system;
+      ext_obj;
+      ext_asm;
+      ext_lib;
+      ext_dll;
+      os_type;
+      default_executable_name;
+      systhread_supported;
+      suffix_program;
+    ]
 end;;
 
 module BaseFileAB =
@@ -1678,7 +1662,7 @@ struct
 end;;
 
 
-# 1681 "setup.ml"
+# 1666 "setup.ml"
 module InternalConfigure =
 struct
 # 1 "src/internal/InternalConfigure.ml"
@@ -1687,26 +1671,49 @@ struct
       @author Sylvain Le Gall
     *)
   
-  module Msg = BaseMessage;;
   open BaseEnvironment;;
+  open BaseExpr;;
   
   (** Build environment using provided series of check to be done
     * and then output corresponding file.
     *)
-  let configure pkg_name pkg_version args checks ab_files env argv =
+  let configure pkg_name pkg_version flags cond_checks ab_files env argv =
   
-    List.iter
-      (fun (nm, vl) -> var_set ODefault nm vl env)
-      [
-        "pkg_name", (lazy pkg_name);
-        "pkg_version", (lazy pkg_version);
-      ];
+    (** Initialize flags *)
+    List.iter 
+      (fun (nm, hlp, choices) ->
+         let apply ?short_desc () = 
+             var_set
+               ?short_desc
+               ~cli:CLIAuto
+               ODefault
+               nm 
+               (lazy (choose choices env))
+               env
+         in
+           match hlp with 
+             | Some hlp ->
+                 apply ~short_desc:hlp ()
+             | None ->
+                 apply ())
+      (("pkg_name",    Some "Package name", (singleton pkg_name)) :: 
+       ("pkg_version", Some "Package version", (singleton pkg_version)) ::
+       flags);
+  
+    (** Initialize standard variables *)
+    List.iter 
+      (fun v -> var_ignore (v env))
+      BaseStandardVar.all;
   
     (* Parse command line *)
-    BaseArgExt.parse argv (BaseArgExt.default :: args) env;
+    BaseArgExt.parse argv (args env) env;
   
     (* Do some check *)
-    BaseCheck.run checks env;
+    List.iter
+      (fun (cond, checks) ->
+         if BaseExpr.choose cond env then
+           BaseCheck.run checks env)
+      cond_checks;
   
     (* Replace data in file *)
     BaseFileAB.replace ab_files env;
@@ -1723,6 +1730,9 @@ struct
   (** Install using ocaml-autobuild internal scheme
       @author Sylvain Le Gall
     *)
+  
+  open BaseEnvironment;;
+  open BaseStandardVar;;
   
   type library =
       {
@@ -1743,13 +1753,13 @@ struct
   ;;
   
   let srcdir =
-    BaseEnvironment.var_define
+    var_define
       "srcdir"
       (lazy ".")
   ;;
   
   let builddir env =
-    BaseEnvironment.var_define
+    var_define
       "builddir"
       (lazy (Filename.concat (srcdir env) "_build"))
       env
@@ -1882,11 +1892,11 @@ struct
                 (fun ((rootdir, name), ext) -> [rootdir; name^ext])
                 (rootdirs * 
                  [exec.exec_name] * 
-                 [".native"; ".byte"; ""; BaseStandardVar.suffix_program env])
+                 [".native"; ".byte"; ""; suffix_program env])
             in
             let tgt_file =
               Filename.concat 
-                (BaseArgExt.bindir env)
+                (bindir env)
                 exec.exec_name
             in
               BaseMessage.info 
@@ -1905,7 +1915,7 @@ struct
 end;;
 
 
-# 1908 "setup.ml"
+# 1919 "setup.ml"
 module OCamlbuildBuild =
 struct
 # 1 "src/ocamlbuild/OCamlbuildBuild.ml"
@@ -1962,7 +1972,7 @@ struct
 end;;
 
 
-# 1965 "setup.ml"
+# 1976 "setup.ml"
 let setup () =
   BaseSetup.setup
     {
@@ -1979,6 +1989,12 @@ let setup () =
                }
            ]
            [
+             {
+               InternalInstall.exec_name = ("BenchSkip");
+               InternalInstall.exec_install =
+                 ([(BaseExpr.Bool true, true); (BaseExpr.Bool true, false)]);
+               InternalInstall.exec_path = ("tests");
+               };
              {
                InternalInstall.exec_name = ("Bench");
                InternalInstall.exec_install =
@@ -2013,7 +2029,17 @@ let setup () =
                 (BaseExpr.Bool true, true);
                 (BaseExpr.Test ("ocamlbest", "byte"), false)
               ],
-               "tests/Bench.native")
+               "tests/Bench.native");
+             ([
+                (BaseExpr.Bool true, true);
+                (BaseExpr.Test ("ocamlbest", "native"), false)
+              ],
+               "tests/BenchSkip.byte");
+             ([
+                (BaseExpr.Bool true, true);
+                (BaseExpr.Test ("ocamlbest", "byte"), false)
+              ],
+               "tests/BenchSkip.native")
            ]);
       BaseSetup.configure =
         (InternalConfigure.configure
@@ -2021,13 +2047,18 @@ let setup () =
            "0.0.1"
            []
            [
-             BaseCheck.package "bigarray";
-             BaseCheck.package "oUnit";
-             BaseCheck.package "benchmark";
-             BaseCheck.prog "ocamlbuild";
-             BaseStandardVar.ocamlbest;
-             BaseStandardVar.standard_library;
-             BaseStandardVar.os_type
+             ([(BaseExpr.Bool true, true)],
+               [
+                 BaseStandardVar.ocamlbest;
+                 BaseStandardVar.standard_library;
+                 BaseStandardVar.os_type
+               ]);
+             ([(BaseExpr.Bool true, true)],
+               [BaseCheck.prog "ocamlbuild"; BaseCheck.package "bigarray"]);
+             ([(BaseExpr.Bool true, true)], []);
+             ([(BaseExpr.Bool true, true)], [BaseCheck.package "benchmark"]);
+             ([(BaseExpr.Bool true, true)], [BaseCheck.package "benchmark"]);
+             ([(BaseExpr.Bool true, true)], [BaseCheck.package "oUnit"])
            ]
            []);
       BaseSetup.clean = (fun () -> OCamlbuildBuild.clean ());

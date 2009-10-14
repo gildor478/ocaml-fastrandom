@@ -112,3 +112,4 @@
 # mac os finder
 (^|/)\.DS_Store$
 ^_build($|/)
+^setup.data$

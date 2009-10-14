@@ -1,5 +1,5 @@
 
-mybench:
+benchskip:
 
 # AUTOBUILD_START
 # DO NOT EDIT (digest: be1ced7f09a327f0833049658928e932)
@@ -39,7 +39,7 @@ setup.data:
 
 # AUTOBUILD_STOP
 
-mybench: build
+bench: build
 	cd tests/ && ../_build/tests/Bench.native
 
 benchskip: build
