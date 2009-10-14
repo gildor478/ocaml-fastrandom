@@ -49,29 +49,41 @@ CAMLprim value caml_fastrandom_init (value vunit)
   CAMLreturn(Val_unit);
 };
 
-CAMLprim value caml_fastrandom_create (value varr)
+CAMLprim value caml_fastrandom_create (value vunit)
 {
   fastrandom_t *rnd = NULL;
   int i = 0;
 
-  CAMLparam1(varr);
+  CAMLparam1(vunit);
   CAMLlocal1(vres);
+
+  vres = caml_alloc_custom(&fastrandom_operations, sizeof(fastrandom_t), 0, 1);
+  rnd = FastRandom_val(vres);
+  rnd->idx = 0;
+
+  CAMLreturn(vres);
+};
+
+CAMLprim value caml_fastrandom_reset (value vrnd, value varr)
+{
+  fastrandom_t *rnd = NULL;
+  int i = 0;
+
+  CAMLparam2(vrnd, varr);
 
   if (Wosize_val(varr) != ST_SIZE)
   {
     caml_failwith("Not enough integer to initialize fastrandom structure");
   };
 
-  vres = caml_alloc_custom(&fastrandom_operations, sizeof(fastrandom_t), 0, 1);
-  rnd = FastRandom_val(vres);
-
+  rnd = FastRandom_val(vrnd);
   for (i = 0; i < ST_SIZE; i++)
   {
     rnd->st[i] = Int_val(Field(varr, i));
   };
   rnd->idx = 0;
 
-  CAMLreturn(vres);
+  CAMLreturn(Val_unit);
 };
 
 CAMLprim value caml_fastrandom_copy (value vrnd)
@@ -123,3 +135,18 @@ CAMLprim value caml_fastrandom_refill (value vrnd, value vba)
   CAMLreturn(Val_unit);
 };
 
+CAMLprim value caml_fastrandom_skip (value vrnd, value vn)
+{
+  fastrandom_t *rnd;
+  int i = 0;
+
+  CAMLparam2(vrnd, vn);
+
+  rnd = FastRandom_val(vrnd);
+  for (i = 0; i < Int_val(vn); i++)
+  {
+    bits(rnd);
+  };
+
+  CAMLreturn(Val_unit);
+};

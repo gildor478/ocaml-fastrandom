@@ -27,3 +27,10 @@ Executable Bench
  MainIs: tests/Bench.ml
  CompiledObject: best
  Install: false
+ BuildDepends: benchmark, fastrandom
+
+Executable BenchSkip
+ MainIs: tests/BenchSkip.ml
+ CompiledObject: best
+ Install: false
+ BuildDepends: benchmark, fastrandom

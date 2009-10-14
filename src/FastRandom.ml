@@ -18,13 +18,17 @@ struct
 
   external init: unit -> unit = "caml_fastrandom_init"
 
-  external create: int array -> t = "caml_fastrandom_create" 
+  external create: unit -> t = "caml_fastrandom_create" 
+
+  external reset: t -> int array -> unit = "caml_fastrandom_reset"
 
   external copy: t -> t = "caml_fastrandom_copy"
 
   external bits: t -> int = "caml_fastrandom_bits" "noalloc"
 
   external refill: t -> buffer_t -> unit = "caml_fastrandom_refill" "noalloc"
+
+  external skip: t -> int -> unit = "caml_fastrandom_skip" "noalloc"
 
   let () = 
     init ()
@@ -39,8 +43,7 @@ struct
       { 
         bits: buffer_t; 
         len:  int;
-
-        mutable low: Low.t;
+        low:  Low.t;
         mutable idx: int;
       }
 
@@ -49,7 +52,7 @@ struct
       max 1 buffer
     in
       {
-        low  = Low.create (Array.make 55 0);
+        low  = Low.create ();
         bits = Array1.create int c_layout buffer;
         idx  = buffer; (* Invalid so initialized at first call *)
         len  = buffer;
@@ -83,7 +86,7 @@ struct
         accu := combine !accu seed.(k);
         st.(j) <- st.(j) lxor extract !accu;
       done;
-      s.low <- Low.create st;
+      Low.reset s.low st;
       s.idx <- s.len
 
   let make ?buffer seed =
@@ -112,14 +115,31 @@ struct
       newval
 
   let rec intaux s n =
-    let r = bits s in
-    let v = r mod n in
-    if r - v > 0x3FFFFFFF - n + 1 then intaux s n else v
+    let r =
+      bits s 
+    in
+    let v = 
+      r mod n 
+    in
+      if r - v > 0x3FFFFFFF - n + 1 then 
+        intaux s n 
+      else 
+        v
 
   let int s bound =
-    if bound > 0x3FFFFFFF || bound <= 0
-    then invalid_arg "Random.int"
-    else intaux s bound
+    if bound > 0x3FFFFFFF || bound <= 0 then 
+      invalid_arg "Random.int"
+    else 
+      intaux s bound
+
+  let skip s n =
+    s.idx <- s.idx + n;
+    if s.idx > s.len then
+      (
+        (* We are beyond end of current buffer *)
+        Low.skip s.low (s.idx - s.len);
+        s.idx <- s.len
+      )
 
 end
 ;;
@@ -144,3 +164,4 @@ let bits () = State.bits default;;
 let int bound = State.int default bound;;
 let init seed = State.full_init default [|seed|];;
 let self_init () = init (random_seed ());;
+let skip n = State.skip default n;;

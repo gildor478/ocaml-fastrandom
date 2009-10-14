@@ -42,6 +42,9 @@ setup.data:
 mybench: build
 	cd tests/ && ../_build/tests/Bench.native
 
+benchskip: build
+	cd tests/ && ../_build/tests/BenchSkip.native
+
 mytest: build
 	cd tests/ && ../_build/tests/Test.byte
 
