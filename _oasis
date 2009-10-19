@@ -7,7 +7,6 @@ Copyrights:   (C) 2009 Sylvain Le Gall
 LicenseFile:  COPYING.txt
 License:      LGPL-link-exn
 Homepage:     http://ocaml-fastrandom.forge.ocamlcore.org
-BuildDepends: bigarray
 Plugins:      META, DevFiles, StdFiles
 Description:
   A random number generator compatible with standard library Random 

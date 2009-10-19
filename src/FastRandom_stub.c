@@ -7,7 +7,6 @@
 
 #include <caml/memory.h>
 #include <caml/custom.h>
-#include <caml/bigarray.h>
 #include <caml/fail.h>
 #include <string.h>
 #include <assert.h>
@@ -52,7 +51,6 @@ CAMLprim value caml_fastrandom_init (value vunit)
 CAMLprim value caml_fastrandom_create (value vunit)
 {
   fastrandom_t *rnd = NULL;
-  int i = 0;
 
   CAMLparam1(vunit);
   CAMLlocal1(vres);
@@ -112,27 +110,26 @@ CAMLprim value caml_fastrandom_bits (value vrnd)
   CAMLreturn(Val_int(res));
 };
 
-CAMLprim value caml_fastrandom_refill (value vrnd, value vba)
+CAMLprim value caml_fastrandom_refill (value vrnd, value va)
 {
-  int           len = 0, i = 0;
+  int           len = 0, i = 0, first = 0;
   fastrandom_t *rnd;
-  intnat       *data = NULL;
 
-  CAMLparam2(vrnd, vba);
-
-  assert(Bigarray_val(vba)->num_dims == 1);
-  assert((Bigarray_val(vba)->flags & BIGARRAY_KIND_MASK) == BIGARRAY_CAML_INT);
+  CAMLparam2(vrnd, va);
 
   rnd = FastRandom_val(vrnd);
-  data = Data_bigarray_val(vba);
-  len = Bigarray_val(vba)->dim[0];
+  len = Wosize_val(va);
 
+  first = bits(rnd);
   for (i = 0; i < len; i++)
   {
-    data[i] = bits(rnd);
+    /* We can do direct assignement because we are assigning
+     * integer which are not block
+     */
+    Field(va, i) = Val_int(bits(rnd));
   };
 
-  CAMLreturn(Val_unit);
+  CAMLreturn(Val_int(first));
 };
 
 CAMLprim value caml_fastrandom_skip (value vrnd, value vn)

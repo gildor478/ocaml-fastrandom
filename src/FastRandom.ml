@@ -8,8 +8,6 @@
     See OCaml standard library Random module for details.
   *)
 
-type buffer_t = (int, Bigarray.int_elt, Bigarray.c_layout) Bigarray.Array1.t
-
 external random_seed: unit -> int = "caml_sys_random_seed";;
 
 module Low =
@@ -26,39 +24,14 @@ struct
 
   external bits: t -> int = "caml_fastrandom_bits" "noalloc"
 
-  external refill: t -> buffer_t -> unit = "caml_fastrandom_refill" "noalloc"
+  external refill: t -> int array -> int = "caml_fastrandom_refill" "noalloc"
 
   external skip: t -> int -> unit = "caml_fastrandom_skip" "noalloc"
 
   let () = 
     init ()
-end
-;;
-
-module State = 
-struct
-  open Bigarray
-
-  type t = 
-      { 
-        bits: buffer_t; 
-        len:  int;
-        low:  Low.t;
-        mutable idx: int;
-      }
-
-  let new_state ?(buffer=1024) () = 
-    let buffer = 
-      max 1 buffer
-    in
-      {
-        low  = Low.create ();
-        bits = Array1.create int c_layout buffer;
-        idx  = buffer; (* Invalid so initialized at first call *)
-        len  = buffer;
-      }
-
-  let full_init s seed =
+  
+  let full_init t seed =
     let st = 
       Array.make 55 0
     in
@@ -86,59 +59,90 @@ struct
         accu := combine !accu seed.(k);
         st.(j) <- st.(j) lxor extract !accu;
       done;
-      Low.reset s.low st;
-      s.idx <- s.len
+      reset t st
+
+end
+;;
+
+module State = 
+struct
+  open Bigarray
+
+  type t = 
+      {
+        low:    Low.t;
+        bits:   int array;
+        len:    int;
+        mutable idx: int;
+      }
+
+  let new_state ?(buffer=1024) () = 
+    let buffer_len = 
+      max 0 buffer
+    in
+      {
+        low  = Low.create ();
+        bits = Array.create buffer_len 0;
+        idx  = buffer_len; (* Invalid so initialized at first call *)
+        len  = buffer_len;
+      }
+
+  let full_init t seed =
+    Low.full_init t.low seed;
+    (* Invalidate buffer *)
+    t.idx <- t.len
 
   let make ?buffer seed =
-    let res =
+    let t =
       new_state ?buffer ()
     in
-      full_init res seed;
-      res
+      Low.full_init t.low seed;
+      t
 
   let make_self_init ?buffer () = 
     make ?buffer [|random_seed ()|]
 
   (* Returns 30 random bits as an integer 0 <= x < 1073741824 *)
-  let rec bits s =
-    let () = 
-      if s.idx >= s.len then
-        (
-          Low.refill s.low s.bits;
-          s.idx <- 0
-        )
-    in
-    let newval = 
-      Array1.get s.bits s.idx
-    in
-      s.idx <- s.idx + 1;
-      newval
+  let rec bits t =
+    if t.idx >= t.len then
+      (
+        t.idx <- 0;
+        Low.refill t.low t.bits
+      )
+    else
+      (
+        let newval = 
+          Array.unsafe_get t.bits t.idx
+        in
+          t.idx <- t.idx + 1;
+          newval
+      )
 
-  let rec intaux s n =
+  let rec intaux t n =
     let r =
-      bits s 
+      bits t 
     in
     let v = 
       r mod n 
     in
       if r - v > 0x3FFFFFFF - n + 1 then 
-        intaux s n 
+        intaux t n 
       else 
         v
 
-  let int s bound =
+  let int t bound =
     if bound > 0x3FFFFFFF || bound <= 0 then 
       invalid_arg "Random.int"
     else 
-      intaux s bound
+      intaux t bound
 
-  let skip s n =
-    s.idx <- s.idx + n;
-    if s.idx > s.len then
+  let skip t n =
+    t.idx <- t.idx + n;
+    if t.idx > t.len then
       (
         (* We are beyond end of current buffer *)
-        Low.skip s.low (s.idx - s.len);
-        s.idx <- s.len
+        Low.skip t.low (t.idx - t.len);
+        t.idx <- t.len
       )
 
 end
