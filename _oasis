@@ -18,20 +18,34 @@ Description:
 Library fastrandom
  Path: src
  Modules: FastRandom
- 
-Executable Test
+ CSources: FastRandom_stub.c
+
+Executable "Test"
  MainIs: tests/Test.ml
  Install: false
  BuildDepends: oUnit, fastrandom
 
+Test test
+  Type: Custom
+  Command: $test
+ 
 Executable Bench
  MainIs: tests/Bench.ml
  CompiledObject: best
  Install: false
  BuildDepends: benchmark, fastrandom
 
+Test bench
+  Type: Custom
+  Command: $bench
+
 Executable BenchSkip
  MainIs: tests/BenchSkip.ml
  CompiledObject: best
  Install: false
  BuildDepends: benchmark, fastrandom
+
+Test benchskip
+  Type: Custom
+  Command: $bench_skip
+

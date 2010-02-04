@@ -1,8 +1,88 @@
 
 (* AUTOBUILD_START *)
-(* DO NOT EDIT (digest: 4028c675a576e9cfe433fe96a2eb9e42) *)
-module OCamlfind =
-struct
+(* DO NOT EDIT (digest: 76ef2244b99af876405d9a7e339f0b70) *)
+module BaseEnvLight = struct
+# 0 "/home/gildor/programmation/ocaml-autobuild/src/base/BaseEnvLight.ml"
+  
+  (** Simple environment, allowing only to read values
+    *)
+  
+  module MapString = Map.Make(String)
+  
+  type t = string MapString.t
+  
+  (** Environment default file 
+    *)
+  let default_filename =
+    Filename.concat 
+      (Filename.dirname Sys.argv.(0))
+      "setup.data"
+  
+  (** Load environment.
+    *)
+  let load ?(allow_empty=false) ?(filename=default_filename) () =
+    if Sys.file_exists filename then
+      begin
+        let chn =
+          open_in_bin filename
+        in
+        let rmp =
+          ref MapString.empty
+        in
+          begin
+            try 
+              while true do 
+                Scanf.fscanf chn "%s = %S\n" 
+                  (fun nm vl -> rmp := MapString.add nm vl !rmp)
+              done;
+              ()
+            with End_of_file ->
+              ()
+          end;
+          close_in chn;
+          !rmp
+      end
+    else if allow_empty then
+      begin
+        MapString.empty
+      end
+    else
+      begin
+        failwith 
+          (Printf.sprintf 
+             "Unable to load environment, the file '%s' doesn't exist."
+             filename)
+      end
+  
+  (** Get a variable that evaluate expression that can be found in it (see
+      {!Buffer.add_substitute}.
+    *)
+  let var_get name env =
+    let rec var_expand str =
+      let buff =
+        Buffer.create ((String.length str) * 2)
+      in
+        Buffer.add_substitute 
+          buff
+          (fun var -> 
+             try 
+               var_expand (MapString.find var env)
+             with Not_found ->
+               failwith 
+                 (Printf.sprintf 
+                    "No variable %s defined when trying to expand %S."
+                    var 
+                    str))
+          str;
+        Buffer.contents buff
+    in
+      var_expand (MapString.find name env)
+end
+
+
+# 82 "myocamlbuild.ml"
+module OCamlbuildFindlib = struct
+# 0 "/home/gildor/programmation/ocaml-autobuild/src/ocamlbuild/OCamlbuildFindlib.ml"
   (** OCamlbuild extension, copied from 
     * http://brion.inria.fr/gallium/index.php/Using_ocamlfind_with_ocamlbuild
     * by N. Pouillard and others
@@ -12,14 +92,14 @@ struct
     * Modified by Sylvain Le Gall 
     *)
   open Ocamlbuild_plugin
-
+  
   (* these functions are not really officially exported *)
   let run_and_read = 
     Ocamlbuild_pack.My_unix.run_and_read
-
+  
   let blank_sep_strings = 
     Ocamlbuild_pack.Lexers.blank_sep_strings
-
+  
   let split s ch =
     let x = 
       ref [] 
@@ -34,24 +114,24 @@ struct
       try
         go s
       with Not_found -> !x
-
+  
   let split_nl s = split s '\n'
-
+  
   let before_space s =
     try
       String.before s (String.index s ' ')
     with Not_found -> s
-
+  
   (* this lists all supported packages *)
   let find_packages () =
     List.map before_space (split_nl & run_and_read "ocamlfind list")
-
+  
   (* this is supposed to list available syntaxes, but I don't know how to do it. *)
   let find_syntaxes () = ["camlp4o"; "camlp4r"]
-
+  
   (* ocamlfind command *)
   let ocamlfind x = S[A"ocamlfind"; x]
-
+  
   let dispatch =
     function
       | Before_options ->
@@ -81,7 +161,7 @@ struct
               flag ["ocaml"; "infer_interface"; "pkg_"^pkg] & S[A"-package"; A pkg];
             end 
             (find_packages ());
-
+  
           (* Like -package but for extensions syntax. Morover -syntax is useless
            * when linking. *)
           List.iter begin fun syntax ->
@@ -90,7 +170,7 @@ struct
           flag ["ocaml"; "doc";      "syntax_"^syntax] & S[A"-syntax"; A syntax];
           flag ["ocaml"; "infer_interface"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
           end (find_syntaxes ());
-
+  
           (* The default "thread" tag is not compatible with ocamlfind.
            * Indeed, the default rules add the "threads.cma" or "threads.cmxa"
            * options when using this tag. When using the "-linkpkg" option with
@@ -102,31 +182,57 @@ struct
           flag ["ocaml"; "pkg_threads"; "compile"] (S[A "-thread"]);
           flag ["ocaml"; "pkg_threads"; "link"] (S[A "-thread"]);
           flag ["ocaml"; "pkg_threads"; "infer_interface"] (S[A "-thread"])
-
+  
       | _ -> 
           ()
-end;;
+  
+end
 
-module OCamlAutobuild =
-struct
+module OCamlbuildBase = struct
+# 0 "/home/gildor/programmation/ocaml-autobuild/src/ocamlbuild/OCamlbuildBase.ml"
+  
+  (** Base functions for writing myocamlbuild.ml
+      @author Sylvain Le Gall
+    *)
+  
   open Ocamlbuild_plugin
-
+  
   type dir = string
   type name = string
-
+  
   type t =
       {
         lib_ocaml: (name * dir list) list;
+        lib_c:     (name * dir) list; 
       }
-
+  
   let dispatch_combine lst =
     fun e ->
       List.iter 
         (fun dispatch -> dispatch e)
         lst 
-
+  
   let dispatch t = 
     function
+      | Before_options ->
+          let env = 
+            BaseEnvLight.load ~filename:(Pathname.basename BaseEnvLight.default_filename) ()
+          in
+          let no_trailing_dot s =
+            if String.length s >= 1 && s.[0] = '.' then
+              String.sub s 1 ((String.length s) - 1)
+            else
+              s
+          in
+            List.iter
+              (fun (opt, var) ->
+                 opt := no_trailing_dot (BaseEnvLight.var_get var env))
+              [
+                Options.ext_obj, "ext_obj";
+                Options.ext_lib, "ext_lib";
+                Options.ext_dll, "ext_dll";
+              ]
+  
       | After_rules -> 
           (* Declare OCaml libraries *)
           List.iter 
@@ -141,32 +247,60 @@ struct
                           ["ocaml"; "use_"^lib; "compile"] 
                           (S[A"-I"; P dir]))
                      tl)
-            t.lib_ocaml
-
+            t.lib_ocaml;
+  
+          (* Declare C libraries *)
+          List.iter
+            (fun (lib, dir) ->
+                 (* Handle C part of library *)
+                 flag ["link"; "library"; "ocaml"; "byte"; "use_lib"^lib]
+                   (S[A"-dllib"; A("-l"^lib); A"-cclib"; A("-l"^lib)]);
+  
+                 flag ["link"; "library"; "ocaml"; "native"; "use_lib"^lib]
+                   (S[A"-cclib"; A("-l"^lib)]);
+                      
+                 flag ["link"; "program"; "ocaml"; "byte"; "use_lib"^lib]
+                   (S[A"-dllib"; A("dll"^lib)]);
+  
+                 (* When ocaml link something that use the C library, then one
+                    need that file to be up to date.
+                  *)
+                 dep  ["link"; "ocaml"; "use_lib"^lib] 
+                   [dir/"lib"^lib^"."^(!Options.ext_lib)];
+  
+                 (* Setup search path for lib *)
+                 flag ["link"; "ocaml"; "use_"^lib] 
+                   (S[A"-I"; P(dir)]);
+            )
+            t.lib_c
       | _ -> 
           ()
-
+  
   let dispatch_default t =
     dispatch_combine 
       [
         dispatch t;
-        OCamlfind.dispatch;
+        OCamlbuildFindlib.dispatch;
       ]
-
 end
 
+
+# 287 "myocamlbuild.ml"
 let package_default =
-  {OCamlAutobuild.lib_ocaml = ([("src/fastrandom", ["src"])]); }
+  {
+     OCamlbuildBase.lib_ocaml = [("src/fastrandom", ["src"])];
+     lib_c = [("fastrandom", "src")];
+     }
   ;;
 
-let dispatch_default = OCamlAutobuild.dispatch_default package_default;;
+let dispatch_default = OCamlbuildBase.dispatch_default package_default;;
 
 (* AUTOBUILD_STOP *)
 
 open Ocamlbuild_plugin;;
 
 dispatch
-  (OCamlAutobuild.dispatch_combine
+  (OCamlbuildBase.dispatch_combine
      [
        dispatch_default;
        (
@@ -174,21 +308,6 @@ dispatch
            | After_rules ->
                flag ["compile"; "c"]
                  (S[A"-ccopt"; A"-O2"]);
-
-               (* Handle C part of fastrandom (libfastrandom) *)
-               flag ["link"; "library"; "ocaml"; "byte"; "use_libfastrandom"]
-                 (S[A"-dllib"; A"-lfastrandom"; A"-cclib"; A"-lfastrandom"]);
-
-               flag ["link"; "library"; "ocaml"; "native"; "use_libfastrandom"]
-                 (S[A"-cclib"; A"-lfastrandom"]);
-                    
-               (* When ocaml link something that use the libcryptokit, then one need that file to be up to date. *)
-               dep  ["link"; "ocaml"; "use_libfastrandom"] ["src/libfastrandom.a"];
-
-               (* Setup search path for lib *)
-               flag ["link"; "ocaml"; "use_libfastrandom"] 
-                 (S[A"-ccopt"; A"-Lsrc"]);
-
            | _ -> 
                ()
        );

@@ -1,5 +1,5 @@
 (* AUTOBUILD_START *)
-(* DO NOT EDIT (digest: 1a055499e5054a7d7b50275eacecfb56) *)
+(* DO NOT EDIT (digest: 51c7dc5745023e9fe03146c60c9cf1f0) *)
 This is the INSTALL file for the ocaml-fastrandom distribution.
 
 This package use ocaml-autobuild to generate its build system. See section
@@ -10,7 +10,6 @@ Dependencies
 
 In order to compile this package, you will need:
 * ocamlbuild
-* findlib package bigarray
 
 Installing
 ==========

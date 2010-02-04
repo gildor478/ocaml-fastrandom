@@ -1,23 +1,19 @@
 # AUTOBUILD_START
-# DO NOT EDIT (digest: 23caef802aef1bbacc8424439a1e45ce)
+# DO NOT EDIT (digest: ef6227374b96e5c9d138bdc002f4300a)
 # Library fastrandom
-<src/*.ml>: pkg_bigarray
+<src/fastrandom.{cma,cmxa}>: use_libfastrandom
 # Executable BenchSkip
 <tests/BenchSkip.{native,byte}>: pkg_benchmark
 <tests/BenchSkip.{native,byte}>: use_fastrandom
-<tests/BenchSkip.{native,byte}>: pkg_bigarray
 # Executable Bench
 <tests/*.ml>: pkg_benchmark
 <tests/Bench.{native,byte}>: pkg_benchmark
 <tests/Bench.{native,byte}>: use_fastrandom
-<tests/Bench.{native,byte}>: pkg_bigarray
 # Executable Test
 <tests/*.ml>: pkg_oUnit
 <tests/*.ml>: use_fastrandom
-<tests/*.ml>: pkg_bigarray
 <tests/Test.byte>: pkg_oUnit
 <tests/Test.byte>: use_fastrandom
-<tests/Test.byte>: pkg_bigarray
 # AUTOBUILD_STOP
 <src/fastrandom.{cma,cmxa}>: use_libfastrandom
 <tests/*.byte>: custom
