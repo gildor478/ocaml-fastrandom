@@ -1,7 +1,7 @@
 
-default: mytest benchskip
+default: mytest benchskip bench
 
-# AUTOBUILD_START
+# OASIS_START
 # DO NOT EDIT (digest: b73a05ebea91f832e18c42666ba6226e)
 
 SETUP = ocaml setup.ml
@@ -32,7 +32,7 @@ setup.data:
 
 .PHONY: build doc test install uninstall clean distclean configure
 
-# AUTOBUILD_STOP
+# OASIS_STOP
 
 bench: build
 	cd tests/ && ../_build/tests/Bench.native

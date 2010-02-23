@@ -1,8 +1,7 @@
-
-(* AUTOBUILD_START *)
-(* DO NOT EDIT (digest: 76ef2244b99af876405d9a7e339f0b70) *)
+(* OASIS_START *)
+(* DO NOT EDIT (digest: 6c24c4a3c6dc8dda8968583835fa9dc2) *)
 module BaseEnvLight = struct
-# 0 "/home/gildor/programmation/ocaml-autobuild/src/base/BaseEnvLight.ml"
+# 0 "/home/gildor/programmation/oasis/src/base/BaseEnvLight.ml"
   
   (** Simple environment, allowing only to read values
     *)
@@ -32,14 +31,16 @@ module BaseEnvLight = struct
           begin
             try 
               while true do 
-                Scanf.fscanf chn "%s = %S\n" 
-                  (fun nm vl -> rmp := MapString.add nm vl !rmp)
+                let line = 
+                  input_line chn
+                in
+                  Scanf.sscanf line "%s = %S" 
+                    (fun nm vl -> rmp := MapString.add nm vl !rmp)
               done;
               ()
             with End_of_file ->
-              ()
+              close_in chn
           end;
-          close_in chn;
           !rmp
       end
     else if allow_empty then
@@ -80,9 +81,9 @@ module BaseEnvLight = struct
 end
 
 
-# 82 "myocamlbuild.ml"
+# 84 "myocamlbuild.ml"
 module OCamlbuildFindlib = struct
-# 0 "/home/gildor/programmation/ocaml-autobuild/src/ocamlbuild/OCamlbuildFindlib.ml"
+# 0 "/home/gildor/programmation/oasis/src/ocamlbuild/OCamlbuildFindlib.ml"
   (** OCamlbuild extension, copied from 
     * http://brion.inria.fr/gallium/index.php/Using_ocamlfind_with_ocamlbuild
     * by N. Pouillard and others
@@ -189,22 +190,24 @@ module OCamlbuildFindlib = struct
 end
 
 module OCamlbuildBase = struct
-# 0 "/home/gildor/programmation/ocaml-autobuild/src/ocamlbuild/OCamlbuildBase.ml"
+# 0 "/home/gildor/programmation/oasis/src/ocamlbuild/OCamlbuildBase.ml"
   
   (** Base functions for writing myocamlbuild.ml
       @author Sylvain Le Gall
     *)
   
+  
+  
   open Ocamlbuild_plugin
   
-  type dir = string
-  type name = string
+  type dir = string 
+  type name = string 
   
   type t =
       {
-        lib_ocaml: (name * dir list) list;
+        lib_ocaml: (name * dir list * bool) list;
         lib_c:     (name * dir) list; 
-      }
+      } 
   
   let dispatch_combine lst =
     fun e ->
@@ -237,10 +240,10 @@ module OCamlbuildBase = struct
           (* Declare OCaml libraries *)
           List.iter 
             (function
-               | lib, [] ->
-                   ocaml_lib lib;
-               | lib, dir :: tl ->
-                   ocaml_lib ~dir:dir lib;
+               | lib, [], extern ->
+                   ocaml_lib ~extern lib;
+               | lib, dir :: tl, extern ->
+                   ocaml_lib ~extern ~dir:dir lib;
                    List.iter 
                      (fun dir -> 
                         flag 
@@ -282,21 +285,21 @@ module OCamlbuildBase = struct
         dispatch t;
         OCamlbuildFindlib.dispatch;
       ]
+  
 end
 
 
-# 287 "myocamlbuild.ml"
+# 292 "myocamlbuild.ml"
 let package_default =
   {
-     OCamlbuildBase.lib_ocaml = [("src/fastrandom", ["src"])];
+     OCamlbuildBase.lib_ocaml = [("src/fastrandom", ["src"], false)];
      lib_c = [("fastrandom", "src")];
      }
   ;;
 
 let dispatch_default = OCamlbuildBase.dispatch_default package_default;;
 
-(* AUTOBUILD_STOP *)
-
+(* OASIS_STOP *)
 open Ocamlbuild_plugin;;
 
 dispatch

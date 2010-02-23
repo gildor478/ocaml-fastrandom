@@ -1,7 +1,8 @@
-# AUTOBUILD_START
-# DO NOT EDIT (digest: ef6227374b96e5c9d138bdc002f4300a)
+# OASIS_START
+# DO NOT EDIT (digest: c09f4d15623bcc0503cec86208b128d5)
 # Library fastrandom
 <src/fastrandom.{cma,cmxa}>: use_libfastrandom
+"src": include
 # Executable BenchSkip
 <tests/BenchSkip.{native,byte}>: pkg_benchmark
 <tests/BenchSkip.{native,byte}>: use_fastrandom
@@ -14,6 +15,6 @@
 <tests/*.ml>: use_fastrandom
 <tests/Test.byte>: pkg_oUnit
 <tests/Test.byte>: use_fastrandom
-# AUTOBUILD_STOP
+# OASIS_STOP
 <src/fastrandom.{cma,cmxa}>: use_libfastrandom
 <tests/*.byte>: custom

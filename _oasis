@@ -16,36 +16,40 @@ Description:
   numbers at once.
 
 Library fastrandom
- Path: src
- Modules: FastRandom
+ Path:     src
+ Modules:  FastRandom
  CSources: FastRandom_stub.c
+ XOCamlbuildExtern: false
 
 Executable "Test"
- MainIs: tests/Test.ml
- Install: false
+ Path:         tests
+ MainIs:       Test.ml
+ Install:      false
  BuildDepends: oUnit, fastrandom
 
 Test test
-  Type: Custom
+  Type:    Custom
   Command: $test
  
 Executable Bench
- MainIs: tests/Bench.ml
+ Path:           tests
+ MainIs:         Bench.ml
  CompiledObject: best
- Install: false
- BuildDepends: benchmark, fastrandom
+ Install:        false
+ BuildDepends:   benchmark (>= 0.9), fastrandom
 
 Test bench
-  Type: Custom
+  Type:    Custom
   Command: $bench
 
 Executable BenchSkip
- MainIs: tests/BenchSkip.ml
+ Path:           tests
+ MainIs:         BenchSkip.ml
  CompiledObject: best
- Install: false
- BuildDepends: benchmark, fastrandom
+ Install:        false
+ BuildDepends:   benchmark (>= 0.9), fastrandom
 
 Test benchskip
-  Type: Custom
+  Type:    Custom
   Command: $bench_skip
 

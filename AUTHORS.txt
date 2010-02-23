@@ -1,6 +1,5 @@
-(* AUTOBUILD_START *)
-(* DO NOT EDIT (digest: 74b4426c754bafcbf2d484c965bce3ec) *)
+(* OASIS_START *)
+(* DO NOT EDIT (digest: 5ef7fa6bad81a4595c5cd772cf22f8cc) *)
 Authors of ocaml-fastrandom
 Sylvain Le Gall
-
-(* AUTOBUILD_STOP *)
+(* OASIS_STOP *)

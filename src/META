@@ -1,7 +1,7 @@
-# AUTOBUILD_START
+# OASIS_START
 # DO NOT EDIT (digest: 165ddb579d56b9bf4dee6c60c74b874a)
 version = "0.0.1"
 description = "Fast random number generator"
 archive(byte) = "fastrandom.cma"
 archive(native) = "fastrandom.cmxa"
-# AUTOBUILD_STOP
+# OASIS_STOP
