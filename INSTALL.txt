@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: b248d906548337e0ae930bacb61ec9c2) *)
+(* DO NOT EDIT (digest: 8b82ae907a2ee6a0b272cfc1877b1eee) *)
 This is the INSTALL file for the ocaml-fastrandom distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -9,7 +9,7 @@ Dependencies
 ============
 
 In order to compile this package, you will need:
-* ocaml
+* ocaml for all, test bench, test benchskip, test test
 * findlib
 * benchmark (>= 0.9) for executable Bench, executable BenchSkip
 * oUnit for executable Test

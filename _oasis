@@ -1,13 +1,14 @@
-OASISFormat:  1.0
+OASISFormat:  0.1
 Name:         ocaml-fastrandom
 Version:      0.0.1
 Synopsis:     Fast random number generator
 Authors:      Sylvain Le Gall
 Copyrights:   (C) 2009 Sylvain Le Gall
 LicenseFile:  COPYING.txt
-License:      LGPL-link-exn
+License:      LGPL-2.1 with OCaml linking exception
 Homepage:     http://ocaml-fastrandom.forge.ocamlcore.org
-Plugins:      META, DevFiles, StdFiles
+Plugins:      META (0.1.0), DevFiles (0.1.0), StdFiles (0.1.0)
+BuildTools:   ocamlbuild
 Description:
   A random number generator compatible with standard library Random 
   module. 
@@ -19,7 +20,7 @@ Library fastrandom
  Path:     src
  Modules:  FastRandom
  CSources: FastRandom_stub.c
- XOCamlbuildExtern: false
+ CCOpt:    -O2
 
 Executable "Test"
  Path:         tests
@@ -28,7 +29,6 @@ Executable "Test"
  BuildDepends: oUnit, fastrandom
 
 Test test
-  Type:    Custom
   Command: $test
  
 Executable Bench
@@ -39,7 +39,6 @@ Executable Bench
  BuildDepends:   benchmark (>= 0.9), fastrandom
 
 Test bench
-  Type:    Custom
   Command: $bench
 
 Executable BenchSkip
@@ -50,6 +49,5 @@ Executable BenchSkip
  BuildDepends:   benchmark (>= 0.9), fastrandom
 
 Test benchskip
-  Type:    Custom
   Command: $bench_skip
 

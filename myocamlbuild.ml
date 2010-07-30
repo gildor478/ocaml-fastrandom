@@ -1,47 +1,61 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 6c24c4a3c6dc8dda8968583835fa9dc2) *)
+(* DO NOT EDIT (digest: cb359ff5bc53485a450776f4dfe7939e) *)
 module BaseEnvLight = struct
-# 0 "/home/gildor/programmation/oasis/src/base/BaseEnvLight.ml"
-  
-  (** Simple environment, allowing only to read values
-    *)
+# 21 "/home/gildor/programmation/oasis/src/base/BaseEnvLight.ml"
   
   module MapString = Map.Make(String)
   
   type t = string MapString.t
   
-  (** Environment default file 
-    *)
   let default_filename =
     Filename.concat 
-      (Filename.dirname Sys.argv.(0))
+      (Sys.getcwd ())
       "setup.data"
   
-  (** Load environment.
-    *)
   let load ?(allow_empty=false) ?(filename=default_filename) () =
     if Sys.file_exists filename then
       begin
         let chn =
           open_in_bin filename
         in
-        let rmp =
-          ref MapString.empty
+        let st =
+          Stream.of_channel chn
         in
-          begin
-            try 
-              while true do 
-                let line = 
-                  input_line chn
-                in
-                  Scanf.sscanf line "%s = %S" 
-                    (fun nm vl -> rmp := MapString.add nm vl !rmp)
-              done;
-              ()
-            with End_of_file ->
-              close_in chn
-          end;
-          !rmp
+        let line =
+          ref 1
+        in
+        let st_line = 
+          Stream.from
+            (fun _ ->
+               try
+                 match Stream.next st with 
+                   | '\n' -> incr line; Some '\n'
+                   | c -> Some c
+               with Stream.Failure -> None)
+        in
+        let lexer = 
+          Genlex.make_lexer ["="] st_line
+        in
+        let rec read_file mp =
+          match Stream.npeek 3 lexer with 
+            | [Genlex.Ident nm; Genlex.Kwd "="; Genlex.String value] ->
+                Stream.junk lexer; 
+                Stream.junk lexer; 
+                Stream.junk lexer;
+                read_file (MapString.add nm value mp)
+            | [] ->
+                mp
+            | _ ->
+                failwith
+                  (Printf.sprintf
+                     "Malformed data file '%s' line %d"
+                     filename !line)
+        in
+        let mp =
+          read_file MapString.empty
+        in
+          close_in chn;
+          mp
       end
     else if allow_empty then
       begin
@@ -55,9 +69,6 @@ module BaseEnvLight = struct
              filename)
       end
   
-  (** Get a variable that evaluate expression that can be found in it (see
-      {!Buffer.add_substitute}.
-    *)
   let var_get name env =
     let rec var_expand str =
       let buff =
@@ -81,9 +92,9 @@ module BaseEnvLight = struct
 end
 
 
-# 84 "myocamlbuild.ml"
-module OCamlbuildFindlib = struct
-# 0 "/home/gildor/programmation/oasis/src/ocamlbuild/OCamlbuildFindlib.ml"
+module MyOCamlbuildFindlib = struct
+# 21 "/home/gildor/programmation/oasis/src/plugins/ocamlbuild/MyOCamlbuildFindlib.ml"
+  
   (** OCamlbuild extension, copied from 
     * http://brion.inria.fr/gallium/index.php/Using_ocamlfind_with_ocamlbuild
     * by N. Pouillard and others
@@ -148,7 +159,7 @@ module OCamlbuildFindlib = struct
       | After_rules ->
           
           (* When one link an OCaml library/binary/package, one should use -linkpkg *)
-          flag ["ocaml"; "link"] & A"-linkpkg";
+          flag ["ocaml"; "link"; "program"] & A"-linkpkg";
           
           (* For each ocamlfind package one inject the -package option when
            * compiling, computing dependencies, generating documentation and
@@ -189,8 +200,8 @@ module OCamlbuildFindlib = struct
   
 end
 
-module OCamlbuildBase = struct
-# 0 "/home/gildor/programmation/oasis/src/ocamlbuild/OCamlbuildBase.ml"
+module MyOCamlbuildBase = struct
+# 21 "/home/gildor/programmation/oasis/src/plugins/ocamlbuild/MyOCamlbuildBase.ml"
   
   (** Base functions for writing myocamlbuild.ml
       @author Sylvain Le Gall
@@ -203,11 +214,18 @@ module OCamlbuildBase = struct
   type dir = string 
   type name = string 
   
+# 53 "/home/gildor/programmation/oasis/src/plugins/ocamlbuild/MyOCamlbuildBase.ml"
+  
   type t =
       {
-        lib_ocaml: (name * dir list * bool) list;
+        lib_ocaml: (name * dir list) list;
         lib_c:     (name * dir) list; 
+        flags:     (string list * spec) list;
       } 
+  
+  let env_filename =
+    Pathname.basename 
+      BaseEnvLight.default_filename
   
   let dispatch_combine lst =
     fun e ->
@@ -219,7 +237,10 @@ module OCamlbuildBase = struct
     function
       | Before_options ->
           let env = 
-            BaseEnvLight.load ~filename:(Pathname.basename BaseEnvLight.default_filename) ()
+            BaseEnvLight.load 
+              ~filename:env_filename 
+              ~allow_empty:true
+              ()
           in
           let no_trailing_dot s =
             if String.length s >= 1 && s.[0] = '.' then
@@ -229,7 +250,10 @@ module OCamlbuildBase = struct
           in
             List.iter
               (fun (opt, var) ->
-                 opt := no_trailing_dot (BaseEnvLight.var_get var env))
+                 try 
+                   opt := no_trailing_dot (BaseEnvLight.var_get var env)
+                 with Not_found ->
+                   Printf.eprintf "W: Cannot get variable %s" var)
               [
                 Options.ext_obj, "ext_obj";
                 Options.ext_lib, "ext_lib";
@@ -240,10 +264,10 @@ module OCamlbuildBase = struct
           (* Declare OCaml libraries *)
           List.iter 
             (function
-               | lib, [], extern ->
-                   ocaml_lib ~extern lib;
-               | lib, dir :: tl, extern ->
-                   ocaml_lib ~extern ~dir:dir lib;
+               | lib, [] ->
+                   ocaml_lib lib;
+               | lib, dir :: tl ->
+                   ocaml_lib ~dir:dir lib;
                    List.iter 
                      (fun dir -> 
                         flag 
@@ -275,7 +299,13 @@ module OCamlbuildBase = struct
                  flag ["link"; "ocaml"; "use_"^lib] 
                    (S[A"-I"; P(dir)]);
             )
-            t.lib_c
+            t.lib_c;
+  
+            (* Add flags *)
+            List.iter
+            (fun (tags, spec) ->
+               flag tags & spec)
+            t.flags
       | _ -> 
           ()
   
@@ -283,26 +313,32 @@ module OCamlbuildBase = struct
     dispatch_combine 
       [
         dispatch t;
-        OCamlbuildFindlib.dispatch;
+        MyOCamlbuildFindlib.dispatch;
       ]
   
 end
 
 
-# 292 "myocamlbuild.ml"
+open Ocamlbuild_plugin;;
 let package_default =
   {
-     OCamlbuildBase.lib_ocaml = [("src/fastrandom", ["src"], false)];
+     MyOCamlbuildBase.lib_ocaml = [("src/fastrandom", ["src"])];
      lib_c = [("fastrandom", "src")];
+     flags =
+       [
+          (["oasis_library_fastrandom_ccopt"; "compile"],
+            S [A "-ccopt"; A "-O2"])
+       ];
      }
   ;;
 
-let dispatch_default = OCamlbuildBase.dispatch_default package_default;;
+let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
 (* OASIS_STOP *)
 open Ocamlbuild_plugin;;
 
-dispatch
+dispatch dispatch_default
+(*
   (OCamlbuildBase.dispatch_combine
      [
        dispatch_default;
@@ -315,4 +351,5 @@ dispatch
                ()
        );
      ])
+ *)
 ;;

@@ -1,20 +1,22 @@
 # OASIS_START
-# DO NOT EDIT (digest: c09f4d15623bcc0503cec86208b128d5)
+# DO NOT EDIT (digest: 6478f7def2b059919f428ba2cf607078)
 # Library fastrandom
-<src/fastrandom.{cma,cmxa}>: use_libfastrandom
 "src": include
+<src/*.ml{,i}>: oasis_library_fastrandom_ccopt
+"src/FastRandom_stub.c": oasis_library_fastrandom_ccopt
+<src/fastrandom.{cma,cmxa}>: use_libfastrandom
 # Executable BenchSkip
-<tests/BenchSkip.{native,byte}>: pkg_benchmark
 <tests/BenchSkip.{native,byte}>: use_fastrandom
+<tests/BenchSkip.{native,byte}>: pkg_benchmark
 # Executable Bench
-<tests/*.ml>: pkg_benchmark
-<tests/Bench.{native,byte}>: pkg_benchmark
 <tests/Bench.{native,byte}>: use_fastrandom
+<tests/Bench.{native,byte}>: pkg_benchmark
+<tests/*.ml{,i}>: pkg_benchmark
 # Executable Test
-<tests/*.ml>: pkg_oUnit
-<tests/*.ml>: use_fastrandom
-<tests/Test.byte>: pkg_oUnit
-<tests/Test.byte>: use_fastrandom
+"tests/Test.byte": use_fastrandom
+"tests/Test.byte": pkg_oUnit
+<tests/*.ml{,i}>: use_fastrandom
+<tests/*.ml{,i}>: pkg_oUnit
 # OASIS_STOP
 <src/fastrandom.{cma,cmxa}>: use_libfastrandom
 <tests/*.byte>: custom

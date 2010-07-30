@@ -2,24 +2,30 @@
 default: mytest benchskip bench
 
 # OASIS_START
-# DO NOT EDIT (digest: b73a05ebea91f832e18c42666ba6226e)
+# DO NOT EDIT (digest: bc1e05bfc8b39b664f29dae8dbd3ebbb)
 
 SETUP = ocaml setup.ml
 
 build: setup.data
 	$(SETUP) -build $(BUILDFLAGS)
 
-doc: setup.data
+doc: setup.data build
 	$(SETUP) -doc $(DOCFLAGS)
 
-test: setup.data
+test: setup.data build
 	$(SETUP) -test $(TESTFLAGS)
+
+all: 
+	$(SETUP) -all $(ALLFLAGS)
 
 install: setup.data
 	$(SETUP) -install $(INSTALLFLAGS)
 
 uninstall: setup.data
 	$(SETUP) -uninstall $(UNINSTALLFLAGS)
+
+reinstall: setup.data
+	$(SETUP) -reinstall $(REINSTALLFLAGS)
 
 clean: 
 	$(SETUP) -clean $(CLEANFLAGS)
@@ -30,7 +36,7 @@ distclean:
 setup.data:
 	$(SETUP) -configure $(CONFIGUREFLAGS)
 
-.PHONY: build doc test install uninstall clean distclean configure
+.PHONY: build doc test all install uninstall reinstall clean distclean configure
 
 # OASIS_STOP
 
