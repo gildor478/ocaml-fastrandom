@@ -24,7 +24,7 @@ let _ =
   let bracket_state seed f =
     bracket
       (fun () ->
-         Random.State.make seed,
+         Random3112.State.make seed,
          FastRandom.State.make seed)
       f
       ignore
@@ -37,7 +37,7 @@ let _ =
        for i = 0 to 8192 do 
          assert_equal 
            ~printer:(fun n -> Printf.sprintf "%d (rank %d)" n i)
-           (Random.State.bits exp_gen)
+           (Random3112.State.bits exp_gen)
            (FastRandom.State.bits gen)
        done)
   in
@@ -48,7 +48,7 @@ let _ =
     (fun (exp_gen, gen) ->
        let my_skip n = 
          for i = 1 to n do
-           ignore_int (Random.State.bits exp_gen)
+           ignore_int (Random3112.State.bits exp_gen)
          done
        in
        let n = 
@@ -59,17 +59,17 @@ let _ =
            FastRandom.State.skip gen n;
            assert_equal 
              ~printer:(fun n -> Printf.sprintf "%d (rank %d)" n i)
-             (Random.State.bits exp_gen)
+             (Random3112.State.bits exp_gen)
              (FastRandom.State.bits gen);
          done)
   in
 
   let random_seeds = 
-    Random.init 123456;
+    Random3112.init 123456;
     Array.to_list
       (Array.init
          20
-         (fun i -> [|Random.bits (); Random.bits ()|]))
+         (fun i -> [|Random3112.bits (); Random3112.bits ()|]))
   in
     run_test_tt_main 
       ("fastrandom" >:::
