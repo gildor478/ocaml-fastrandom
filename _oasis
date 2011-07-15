@@ -30,7 +30,7 @@ Executable "Test"
  BuildDepends: oUnit, fastrandom
 
 Test test
-  Command: $test
+  Command: $Test
  
 Executable Bench
  Path:           tests
@@ -40,7 +40,7 @@ Executable Bench
  BuildDepends:   benchmark (>= 0.9), fastrandom
 
 Test bench
-  Command: $bench
+  Command: $Bench
 
 Executable BenchSkip
  Path:           tests
@@ -50,5 +50,5 @@ Executable BenchSkip
  BuildDepends:   benchmark (>= 0.9), fastrandom
 
 Test benchskip
-  Command: $bench_skip
+  Command: $BenchSkip
 
