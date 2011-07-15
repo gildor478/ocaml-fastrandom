@@ -1,4 +1,4 @@
-OASISFormat:  0.1
+OASISFormat:  0.2
 Name:         ocaml-fastrandom
 Version:      0.0.1
 Synopsis:     Fast random number generator
@@ -7,14 +7,15 @@ Copyrights:   (C) 2009 Sylvain Le Gall
 LicenseFile:  COPYING.txt
 License:      LGPL-2.1 with OCaml linking exception
 Homepage:     http://ocaml-fastrandom.forge.ocamlcore.org
-Plugins:      META (0.1.0), DevFiles (0.1.0), StdFiles (0.1.0)
+Plugins:      META (0.2), DevFiles (0.2), StdFiles (0.2)
 BuildTools:   ocamlbuild
 Description:
   A random number generator compatible with standard library Random 
-  module. 
+  module (pre OCaml 3.12). 
   .
   It contains C code to speed up generation and a function to skip a lot of
-  numbers at once.
+  numbers at once. Benchmarks show a 3 fold increase in speed for generating
+  randome numbers. 
 
 Library fastrandom
  Path:     src
