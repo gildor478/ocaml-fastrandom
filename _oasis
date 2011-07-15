@@ -52,3 +52,10 @@ Executable BenchSkip
 Test benchskip
   Command: $BenchSkip
 
+Document "api-fastrandom"
+  Title:                API reference for FastRandom
+  InstallDir:           $htmldir/api-fastrandom
+  Type:                 ocamlbuild (0.2)
+  XOCamlbuildLibraries: fastrandom
+  XOCamlbuildPath:      src
+  BuildTools+:          ocamldoc
