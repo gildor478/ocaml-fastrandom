@@ -114,3 +114,4 @@
 ^_build($|/)
 ^setup.data$
 ^setup.log$
+^.*\.tar\.gz$
